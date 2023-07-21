@@ -165,18 +165,18 @@ class TransactionAPITestCase1(APITestCase):
         transaction_data = {
             'Amount': '200.00',
             'Type': 'Expense',
-            'Category': 'Category1',
+            'Category': str(self.category),
         }
-        print(str(self.category))
+        # print(str(self.category))
         
         response = self.client.post('/api/transactions/', transaction_data, format='json')
 
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        # self.assertEqual(Transaction.objects.count(), initial_count + 1)
-        # self.assertEqual(float(response.data['Amount']), float(transaction_data['Amount']))
-        # self.assertEqual(response.data['Type'], transaction_data['Type'])
-        # self.assertEqual(response.data['category'], str(self.category))
-        # self.assertEqual(response.data['Date'], transaction_data['Date'])
+        self.assertEqual(Transaction.objects.count(), initial_count + 1)
+        self.assertEqual(float(response.data['Amount']), float(transaction_data['Amount']))
+        self.assertEqual(response.data['Type'], transaction_data['Type'])
+        self.assertEqual(response.data['Category'], str(self.category))
+        self.assertEqual(response.data['Date'], Transaction.objects.last().Date)
         # self.assertEqual(response.data['user'], str(self.user.id))
 
     def test_retrieve_transaction(self):
