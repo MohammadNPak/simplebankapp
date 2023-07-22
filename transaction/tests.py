@@ -1,4 +1,5 @@
 from decimal import Decimal
+from datetime import datetime
 from django.contrib.auth.models import User
 from rest_framework.test import APIClient
 from rest_framework_simplejwt.tokens import RefreshToken
@@ -6,6 +7,9 @@ from rest_framework import status
 from django.test import TestCase
 from .models import Transaction,Category
 from rest_framework.test import APITestCase
+
+
+
 
 class CategoryAPITestCase(APITestCase):
     def setUp(self):
@@ -313,3 +317,78 @@ class TransactionAPITestCase1(APITestCase):
 
 #         # Assert that the transaction is deleted from the database
 #         self.assertEqual(Transaction.objects.count(), 0)
+
+
+
+class MonthlySummaryReportAPITestCase(APITestCase):
+    def setUp(self):
+        # Create a test user
+        self.user = User.objects.create_user(username='testuser', password='testpassword')
+
+        # Create three categories
+        self.category1 = Category.objects.create(name='Category1')
+        self.category2 = Category.objects.create(name='Category2')
+        self.category3 = Category.objects.create(name='Category3')
+
+        # Create three transactions for each category
+        self.create_transaction(self.user, self.category1, Decimal('100.50'), 'I')
+        self.create_transaction(self.user, self.category1, Decimal('50.25'), 'E')
+        self.create_transaction(self.user, self.category1, Decimal('75.75'), 'I')
+
+        self.create_transaction(self.user, self.category2, Decimal('200.75'), 'E')
+        self.create_transaction(self.user, self.category2, Decimal('125.00'), 'I')
+        self.create_transaction(self.user, self.category2, Decimal('90.25'), 'E')
+
+        self.create_transaction(self.user, self.category3, Decimal('75.00'), 'I')
+        self.create_transaction(self.user, self.category3, Decimal('50.50'), 'I')
+        self.create_transaction(self.user, self.category3, Decimal('80.00'), 'E')
+
+    def create_transaction(self, user, category, amount, type):
+        return Transaction.objects.create(user=user, Category=category, Amount=amount, Type=type, Date=datetime.now())
+
+    def test_monthly_summary_report(self):
+        # Login the user to get the authentication token
+        url = reverse('token_obtain_pair')
+        data = {'username': 'testuser', 'password': 'testpassword'}
+        response = self.client.post(url, data, format='json')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        token = response.data['access']
+
+        # Set the authorization header with the token for subsequent requests
+        self.client.credentials(HTTP_AUTHORIZATION='Bearer ' + token)
+
+        # Make a GET request to the monthly summary report endpoint
+        url = reverse('monthly_summary_report')
+        response = self.client.get(url, format='json')
+
+        # Assert the response status code and the report data
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        report_data = response.data
+        self.assertEqual(report_data['month'], datetime.now().strftime('%B %Y'))
+
+        # # Calculate total income and total expenses for each category
+        # category1_income = Decimal('100.50') + Decimal('75.75')
+        # category1_expense = Decimal('50.25')
+        # category2_income = Decimal('125.00')
+        # category2_expense = Decimal('200.75') + Decimal('90.25')
+        # category3_income = Decimal('75.00') + Decimal('50.50')
+        # category3_expense = Decimal('80.00')
+
+        # Assert the report data
+        self.assertEqual(report_data['total_income'], category1_income + category2_income + category3_income)
+        self.assertEqual(report_data['total_expenses'], category1_expense + category2_expense + category3_expense)
+        self.assertEqual(report_data['net_cash_flow'], report_data['total_income'] - report_data['total_expenses'])
+
+        # Assert category-wise income and expense data
+        for category in report_data['categories']:
+            if category['category_name'] == 'Category1':
+                self.assertEqual(category['income_amount'], category1_income)
+                self.assertEqual(category['expense_amount'], category1_expense)
+            elif category['category_name'] == 'Category2':
+                self.assertEqual(category['income_amount'], category2_income)
+                self.assertEqual(category['expense_amount'], category2_expense)
+            elif category['category_name'] == 'Category3':
+                self.assertEqual(category['income_amount'], category3_income)
+                self.assertEqual(category['expense_amount'], category3_expense)
+            else:
+                self.fail(f"Unexpected category: {category['category_name']}")

@@ -1,10 +1,14 @@
+from datetime import datetime, timedelta
+from django.db.models import Sum,Q
 from rest_framework.viewsets import ModelViewSet
 from rest_framework import permissions
 from rest_framework.permissions import IsAuthenticated,BasePermission,SAFE_METHODS
 from rest_framework.response import Response
 from rest_framework import status
+from rest_framework.decorators import api_view, permission_classes
 from .models import Transaction,Category
 from .serializers import TransactionSerializer,CategorySerializer
+
 
 
 class IsAdminOrReadOnly(BasePermission):
@@ -49,6 +53,35 @@ class TransactionViewSet(ModelViewSet):
     #     return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
 
 
-# {"username":"abc2","token":
-#  {"access":"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoiYWNjZXNzIiwiZXhwIjoxNjg5ODgxNzI4LCJpYXQiOjE2ODk4Nzg3MjgsImp0aSI6IjllOTQzZWQ0MGJlMDQ4NGM5NWFmMmRmY2M0MDJiOTBkIiwidXNlcl9pZCI6NH0.SOiM_0KQPcOm5S4K_1_KobRAcOj2P5yHrToJZWcRzfE",
-# "refresh":"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoicmVmcmVzaCIsImV4cCI6MTY4OTk2NTEyOCwiaWF0IjoxNjg5ODc4NzI4LCJqdGkiOiI4YmE0NDNhMjA1ZTM0MmI3YjY1ZTdhMTI3YjcwOTU1NSIsInVzZXJfaWQiOjR9.p4Gjbo35okBog-2KR8jrO861kbexs8nXHBvgL7Zithg"}}
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def monthly_summary_report(request):
+    # Get the current month's first day and last day
+    today = datetime.now()
+    first_day_of_month = today.replace(day=1)
+    last_day_of_month = (first_day_of_month + timedelta(days=32)).replace(day=1) - timedelta(days=1)
+
+    # Retrieve transactions for the current month for the logged-in user
+    user_transactions = Transaction.objects.filter(
+        user=request.user,
+        Date__range=[first_day_of_month, last_day_of_month]
+    )
+
+
+    # Calculate total income and total expenses for the month using database-level aggregations
+    summary_data = user_transactions.aggregate(
+        total_income=Sum('Amount', filter=Q(Type='I')),
+        total_expenses=Sum('Amount', filter=Q(Type='E')),
+        net_cash_flow=Sum('Amount', filter=Q(Type='I')) - Sum('Amount', filter=Q(Type='E'))
+    )
+
+
+    report_data = {
+        'user': request.user.username,
+        'month': today.strftime('%B %Y'),
+        'total_income': summary_data['total_income'] or 0,
+        'total_expenses': summary_data['total_expenses'] or 0,
+        'net_cash_flow': summary_data['net_cash_flow'] or 0,
+    }
+
+    return Response(report_data)
