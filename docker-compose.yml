@@ -1,0 +1,47 @@
+version: '3'
+services:
+  db:
+    image: mysql:latest
+    environment:
+      MYSQL_ROOT_PASSWORD: 123456
+      MYSQL_DATABASE: djangodatabase
+      MYSQL_USER: djangouser
+      MYSQL_PASSWORD: djangopassword
+
+      MYSQL_TEST_DATABASE : djangotestdatabase
+      MYSQL_TEST_USER : djangotestuser
+      MYSQL_TEST_PASSWORD : djangotestpassword
+
+    volumes:
+      - mysql_data:/var/lib/mysql
+
+  web:
+    build: .
+    # command: python3 manage.py makemigrations
+    
+    # command: python3 manage.py migrate
+
+    # python manage.py collectstatic --noinput &&
+    command: >
+      sh -c "python manage.py migrate &&
+             python manage.py runserver 0.0.0.0:8000"
+
+    # command: python manage.py runserver 0.0.0.0:8000
+    ports:
+      - "8000:8000"
+    depends_on:
+      - db
+    environment:
+      MYSQL_ROOT_PASSWORD: 123456
+      MYSQL_DATABASE: djangodatabase
+      MYSQL_USER: djangouser
+      MYSQL_PASSWORD: djangopassword
+
+      MYSQL_TEST_DATABASE : djangotestdatabase
+      MYSQL_TEST_USER : djangotestuser
+      MYSQL_TEST_PASSWORD : djangotestpassword
+
+      # DATABASE_URL: mysql://djangouser:djangopassword@db:3306/djangodatabase
+
+volumes:
+  mysql_data:
