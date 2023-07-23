@@ -61,8 +61,8 @@ To run the project using Docker Compose, follow these steps:
 1. Clone the repository:
 
 ```bash
-git clone https://github.com/mohammadnpak/queradjango.git
-cd queradjango
+git clone https://github.com/mohammadnpak/simplebankapp.git
+cd simplebankapp
 ```
 
 2. Set up the environment variables (optional):
