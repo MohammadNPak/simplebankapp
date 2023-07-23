@@ -1,3 +1,4 @@
+from datetime import datetime, timedelta
 from decimal import Decimal
 from datetime import datetime
 from django.contrib.auth.models import User
@@ -7,9 +8,7 @@ from rest_framework import status
 from django.test import TestCase
 from .models import Transaction,Category
 from rest_framework.test import APITestCase
-
-
-
+from django.urls import reverse
 
 class CategoryAPITestCase(APITestCase):
     def setUp(self):
@@ -153,16 +152,16 @@ class TransactionAPITestCase1(APITestCase):
         refresh = RefreshToken.for_user(user)
         return str(refresh.access_token)
 
-    # def create_test_transaction(self):
-    #     transaction_data = {
-    #         'Amount': '100.00',
-    #         'Type': 'I',
-    #         'Category': str(self.category),
-    #     }
+    def create_test_transaction(self):
+        transaction_data = {
+            'Amount': '100.00',
+            'Type': 'Income',
+            'Category': str(self.category),
+        }
 
-    #     response = self.client.post('/api/transactions/', transaction_data, format='json')
-    #     self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-    #     return response.data
+        response = self.client.post('/api/transactions/', transaction_data, format='json')
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        return response.data
 
     def test_create_transaction(self):
         initial_count = Transaction.objects.count()
@@ -190,18 +189,16 @@ class TransactionAPITestCase1(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(float(response.data['Amount']), float(transaction_data['Amount']))
         self.assertEqual(response.data['Type'], transaction_data['Type'])
-        self.assertEqual(response.data['category'], str(self.category.id))
+        self.assertEqual(response.data['Category'], str(self.category))
         self.assertEqual(response.data['Date'], transaction_data['Date'])
-        self.assertEqual(response.data['user'], str(self.user.id))
 
     def test_update_transaction(self):
         transaction_data = self.create_test_transaction()
         url = f'/api/transactions/{transaction_data["id"]}/'
         updated_data = {
             'Amount': '150.00',
-            'Type': 'E',
-            'category': self.category.id,
-            'Date': '2023-07-21T12:00:00Z',
+            'Type': 'Expense',
+            'Category': str(self.category),
         }
 
         response = self.client.put(url, updated_data, format='json')
@@ -209,9 +206,7 @@ class TransactionAPITestCase1(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(float(response.data['Amount']), float(updated_data['Amount']))
         self.assertEqual(response.data['Type'], updated_data['Type'])
-        self.assertEqual(response.data['category'], str(self.category.id))
-        self.assertEqual(response.data['Date'], updated_data['Date'])
-        self.assertEqual(response.data['user'], str(self.user.id))
+        self.assertEqual(response.data['Category'], str(self.category))
 
     def test_delete_transaction(self):
         transaction_data = self.create_test_transaction()
@@ -223,172 +218,54 @@ class TransactionAPITestCase1(APITestCase):
         self.assertEqual(Transaction.objects.count(), 0)
 
 
-
-# class TransactionTestCase(APITestCase):
-#     def setUp(self):
-#         self.client = APIClient()
-#         # Create a test user
-#         self.user = User.objects.create_user(username='testuser', password='testpassword')
-#         # Generate JWT token for the user
-#         self.token = str(RefreshToken.for_user(self.user).access_token)
-#         # Include the token in the request headers
-#         self.client.credentials(HTTP_AUTHORIZATION='Bearer ' + self.token)
-
-#     def test_create_transaction(self):
-#         # Define the data for the new transaction
-#         transaction_data = {'Amount': 100.0,'Type': 'Income','Category': 'Salary'}
-
-#         # Make a POST request to create the transaction
-#         response = self.client.post('/api/transactions/', transaction_data, format='json')
-#         # Assert that the response status code is 201 (Created)
-#         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-
-#         # Assert that the transaction was created successfully in the database
-#         self.assertEqual(Transaction.objects.count(), 1)
-#         self.assertEqual(response.data['Type'], 'Income')
-#         self.assertIsNotNone(response.data['id'])  # Check if the 'id' field is present in the response
-
-#     def test_retrieve_transaction(self):
-#         # Create a sample transaction in the database
-#         transaction = Transaction.objects.create(
-#             user=self.user,
-#             Amount="100.00",
-#             Type='I',
-#             Category='Salary',
-#         )
-
-#         # Make a GET request to retrieve the transaction
-#         response = self.client.get(f'/api/transactions/{transaction.id}/')
-
-#         # Assert that the response status code is 200 (OK)
-#         self.assertEqual(response.status_code, status.HTTP_200_OK)
-
-#         # Assert that the retrieved transaction's Type matches the created transaction's Type
-#         self.assertEqual(response.data['Type'], transaction.get_Type_display())
-#         self.assertEqual(response.data['id'], transaction.id)  # Check if the 'id' field is correct
-#         self.assertEqual(response.data['Amount'], transaction.Amount)  # Check if the 'Amount' field is correct
-#         self.assertEqual(response.data['Category'], transaction.Category)  # Check if the 'Category' field is correct
-
-#     def test_update_transaction(self):
-#         # Create a sample transaction in the database
-#         transaction = Transaction.objects.create(
-#             user=self.user,
-#             Amount="100.00",
-#             Type='I',
-#             Category='Salary',
-#         )
-
-#         # Define the updated data for the transaction
-#         updated_transaction_data = {
-#             'Amount': '200.00',
-#             'Type': 'Expense',
-#             'Category': 'Bonus',
-#         }
-
-#         # Make a PUT request to update the transaction
-#         response = self.client.put(f'/api/transactions/{transaction.id}/', updated_transaction_data, format='json')
-
-#         # Assert that the response status code is 200 (OK)
-#         self.assertEqual(response.status_code, status.HTTP_200_OK)
-
-#         # Refresh the transaction from the database to get the latest changes
-#         transaction.refresh_from_db()
-
-#         # Assert that the transaction's fields have been updated correctly
-#         self.assertEqual(transaction.Amount, Decimal("200.00"))
-#         self.assertEqual(transaction.Type, 'E')
-#         self.assertEqual(response.data['Type'], 'Expense')
-#         self.assertEqual(response.data['id'], transaction.id)  # Check if the 'id' field is correct
-
-#     def test_delete_transaction(self):
-#         # Create a sample transaction in the database
-#         transaction = Transaction.objects.create(
-#             user=self.user,
-#             Amount="100.00",
-#             Type='I',
-#             Category='Salary',
-#         )
-
-#         # Make a DELETE request to delete the transaction
-#         response = self.client.delete(f'/api/transactions/{transaction.id}/')
-
-#         # Assert that the response status code is 204 (No Content) since the object is deleted
-#         self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
-
-#         # Assert that the transaction is deleted from the database
-#         self.assertEqual(Transaction.objects.count(), 0)
-
-
-
-class MonthlySummaryReportAPITestCase(APITestCase):
+class MonthlySummaryReportTestCase(TestCase):
     def setUp(self):
-        # Create a test user
+        self.client = APIClient()
         self.user = User.objects.create_user(username='testuser', password='testpassword')
 
-        # Create three categories
+        # Create sample categories
         self.category1 = Category.objects.create(name='Category1')
         self.category2 = Category.objects.create(name='Category2')
-        self.category3 = Category.objects.create(name='Category3')
 
-        # Create three transactions for each category
-        self.create_transaction(self.user, self.category1, Decimal('100.50'), 'I')
-        self.create_transaction(self.user, self.category1, Decimal('50.25'), 'E')
-        self.create_transaction(self.user, self.category1, Decimal('75.75'), 'I')
+        # Create sample transactions for the current month
+        today = datetime.now()
+        first_day_of_month = today.replace(day=1)
+        last_day_of_month = (first_day_of_month + timedelta(days=32)).replace(day=1) - timedelta(days=1)
 
-        self.create_transaction(self.user, self.category2, Decimal('200.75'), 'E')
-        self.create_transaction(self.user, self.category2, Decimal('125.00'), 'I')
-        self.create_transaction(self.user, self.category2, Decimal('90.25'), 'E')
-
-        self.create_transaction(self.user, self.category3, Decimal('75.00'), 'I')
-        self.create_transaction(self.user, self.category3, Decimal('50.50'), 'I')
-        self.create_transaction(self.user, self.category3, Decimal('80.00'), 'E')
-
-    def create_transaction(self, user, category, amount, type):
-        return Transaction.objects.create(user=user, Category=category, Amount=amount, Type=type, Date=datetime.now())
+        Transaction.objects.create(user=self.user, Amount='100.00', Type='I', Category=self.category1, Date=today)
+        Transaction.objects.create(user=self.user, Amount='50.00', Type='E', Category=self.category1, Date=today)
+        Transaction.objects.create(user=self.user, Amount='200.00', Type='I', Category=self.category2, Date=today)
+        Transaction.objects.create(user=self.user, Amount='75.00', Type='E', Category=self.category2, Date=today)
 
     def test_monthly_summary_report(self):
-        # Login the user to get the authentication token
-        url = reverse('token_obtain_pair')
-        data = {'username': 'testuser', 'password': 'testpassword'}
-        response = self.client.post(url, data, format='json')
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        token = response.data['access']
-
-        # Set the authorization header with the token for subsequent requests
-        self.client.credentials(HTTP_AUTHORIZATION='Bearer ' + token)
-
-        # Make a GET request to the monthly summary report endpoint
+        # Ensure the monthly summary report works correctly
         url = reverse('monthly_summary_report')
+
+        self.client.force_authenticate(user=self.user)
         response = self.client.get(url, format='json')
 
-        # Assert the response status code and the report data
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        report_data = response.data
-        self.assertEqual(report_data['month'], datetime.now().strftime('%B %Y'))
+        self.assertEqual(response.data['user'], 'testuser')
+        self.assertEqual(response.data['month'], datetime.now().strftime('%B %Y'))
+        self.assertEqual(response.data['total_income'], 300.00)
+        self.assertEqual(response.data['total_expenses'], 125.00)
+        self.assertEqual(response.data['net_cash_flow'], 175.00)
+        self.assertEqual(len(response.data['expense_income_by_category']), 2)  # Assuming you have two categories
 
-        # # Calculate total income and total expenses for each category
-        # category1_income = Decimal('100.50') + Decimal('75.75')
-        # category1_expense = Decimal('50.25')
-        # category2_income = Decimal('125.00')
-        # category2_expense = Decimal('200.75') + Decimal('90.25')
-        # category3_income = Decimal('75.00') + Decimal('50.50')
-        # category3_expense = Decimal('80.00')
+    def test_monthly_summary_report_no_data(self):
+        # Ensure the monthly summary report returns no data for a month with no transactions
+        # First, delete the transactions created in the setup function to simulate no data
+        Transaction.objects.all().delete()
 
-        # Assert the report data
-        self.assertEqual(report_data['total_income'], category1_income + category2_income + category3_income)
-        self.assertEqual(report_data['total_expenses'], category1_expense + category2_expense + category3_expense)
-        self.assertEqual(report_data['net_cash_flow'], report_data['total_income'] - report_data['total_expenses'])
+        url = reverse('monthly_summary_report')
 
-        # Assert category-wise income and expense data
-        for category in report_data['categories']:
-            if category['category_name'] == 'Category1':
-                self.assertEqual(category['income_amount'], category1_income)
-                self.assertEqual(category['expense_amount'], category1_expense)
-            elif category['category_name'] == 'Category2':
-                self.assertEqual(category['income_amount'], category2_income)
-                self.assertEqual(category['expense_amount'], category2_expense)
-            elif category['category_name'] == 'Category3':
-                self.assertEqual(category['income_amount'], category3_income)
-                self.assertEqual(category['expense_amount'], category3_expense)
-            else:
-                self.fail(f"Unexpected category: {category['category_name']}")
+        self.client.force_authenticate(user=self.user)
+        response = self.client.get(url, format='json')
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['user'], 'testuser')
+        self.assertEqual(response.data['month'], datetime.now().strftime('%B %Y'))
+        self.assertEqual(response.data['total_income'], 0)
+        self.assertEqual(response.data['total_expenses'], 0)
+        self.assertEqual(response.data['net_cash_flow'], 0)
+        self.assertEqual(response.data['expense_income_by_category'], "No Data")

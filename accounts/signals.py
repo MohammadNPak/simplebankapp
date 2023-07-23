@@ -5,4 +5,5 @@ from transaction.models import Balance
 
 @receiver(post_save, sender=User)
 def create_account(sender, instance, created, **kwargs):
-    Balance.objects.create(user=instance,Amount="0.00")
+    if created:
+        Balance.objects.create(user=instance,Amount="0.00")

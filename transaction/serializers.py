@@ -19,6 +19,13 @@ class TransactionSerializer(serializers.ModelSerializer):
         model = Transaction
         exclude = ['user']
 
+    def validate_Type(self, value):
+        # Add your custom validation logic here
+        valid_types = ['Income', 'Expense']
+        if value not in valid_types:
+            raise serializers.ValidationError("Invalid 'Type'. It should be either 'Income' or 'Expense'.")
+        return value
+
     def create(self, validated_data):
         # Set the user to the authenticated user before creating the transaction
         user = self.context['request'].user
@@ -26,10 +33,16 @@ class TransactionSerializer(serializers.ModelSerializer):
 
     def to_representation(self, instance):
         representation = super().to_representation(instance)
-        representation['Type'] = 'Income' if instance.Type == 'I' else 'Expense'
+        if instance.Type == 'I':
+            representation['Type'] = 'Income'
+        elif instance.Type == 'E':
+            representation['Type'] = 'Expense'
+        else:
+            raise serializers.ValidationError("Invalid type value. Must be 'Income' or 'Expense'.")
         return representation
 
     def to_internal_value(self, data):
+        data = super().to_internal_value(data)
         type_str = data.get('Type', None)
         if type_str:
             if type_str == 'Income':
@@ -38,4 +51,6 @@ class TransactionSerializer(serializers.ModelSerializer):
                 data['Type'] = 'E'
             else:
                 raise serializers.ValidationError("Invalid type value. Must be 'Income' or 'Expense'.")
-        return super().to_internal_value(data)
+        else:
+                raise serializers.ValidationError("Type is required.")
+        return data

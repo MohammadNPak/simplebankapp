@@ -1,5 +1,5 @@
 from datetime import datetime, timedelta
-from django.db.models import Sum,Q
+from django.db.models import Sum,Q,F,DecimalField,Case,When
 from rest_framework.viewsets import ModelViewSet
 from rest_framework import permissions
 from rest_framework.permissions import IsAuthenticated,BasePermission,SAFE_METHODS
@@ -29,7 +29,7 @@ class IsOwner(permissions.BasePermission):
 class CategoryViewSet(ModelViewSet):
     queryset = Category.objects.all()
     serializer_class = CategorySerializer
-    permission_classes = [IsAdminOrReadOnly]
+    permission_classes = [IsAuthenticated,IsAdminOrReadOnly]
 
 
 class TransactionViewSet(ModelViewSet):
@@ -38,8 +38,14 @@ class TransactionViewSet(ModelViewSet):
     serializer_class = TransactionSerializer
     model = Transaction
     queryset = Transaction.objects.all()
+    
     def get_queryset(self):
-        return super().get_queryset().filter(user=self.request.user)
+        return super().get_queryset().filter(user=self.request.user).order_by('-Date')
+
+    # def perform_create(self, serializer):
+    #     serializer.is_valid(raise_exception=True)  # Add this line to raise an exception
+    #     serializer.save()
+
 
     # def create(self, request, *args, **kwargs):
     #     # Additional logic or customization before creating the transaction
@@ -51,6 +57,13 @@ class TransactionViewSet(ModelViewSet):
 
     #     headers = self.get_success_headers(serializer.data)
     #     return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def current_balance(request):
+    # Get the current balance for the logged-in user
+    balance = request.user.balance.Amount
+    return Response({'balance': balance})
 
 
 @api_view(['GET'])
@@ -67,7 +80,6 @@ def monthly_summary_report(request):
         Date__range=[first_day_of_month, last_day_of_month]
     )
 
-
     # Calculate total income and total expenses for the month using database-level aggregations
     summary_data = user_transactions.aggregate(
         total_income=Sum('Amount', filter=Q(Type='I')),
@@ -75,6 +87,10 @@ def monthly_summary_report(request):
         net_cash_flow=Sum('Amount', filter=Q(Type='I')) - Sum('Amount', filter=Q(Type='E'))
     )
 
+    expense_income_by_category = user_transactions.values('Category__name').annotate(
+            income=Sum(Case(When(Type='I', then=F('Amount')), default=0, output_field=DecimalField())),
+            expense=Sum(Case(When(Type='E', then=F('Amount')), default=0, output_field=DecimalField()))
+        )
 
     report_data = {
         'user': request.user.username,
@@ -82,6 +98,7 @@ def monthly_summary_report(request):
         'total_income': summary_data['total_income'] or 0,
         'total_expenses': summary_data['total_expenses'] or 0,
         'net_cash_flow': summary_data['net_cash_flow'] or 0,
+        "expense_income_by_category": expense_income_by_category or "No Data"
     }
 
     return Response(report_data)
